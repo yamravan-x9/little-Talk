@@ -47,6 +47,7 @@
           <button class="section-nav-button active" data-view="chats" type="button"><span>☷</span> Chats</button>
           <button class="section-nav-button" data-view="updates" type="button"><span>◉</span> Updates</button>
           <button class="section-nav-button" data-view="calls" type="button"><span>⌕</span> Calls</button>
+          <button class="section-nav-button" data-view="moments" type="button"><span>✦</span> Moments</button>
         </nav>
 
         <div class="chat-section" id="chat-section">
@@ -90,6 +91,10 @@
           <div class="call-list" id="call-list"></div>
           <p class="local-note">Calls in this demo are activity records only—not live audio or video calls.</p>
         </section>
+        <section class="sidebar-view" id="moments-view" hidden>
+          <div class="section-heading"><span class="eyebrow">YOUR MOMENTS</span><span class="inbox-count" id="moments-count">0</span></div>
+          <div class="moment-shortcuts" id="moments-shortcuts"></div>
+        </section>
 
         <div class="sidebar-footer">
           <span class="sync-dot"></span>
@@ -121,6 +126,7 @@
             <div class="header-actions">
               <button class="icon-button header-action" id="voice-call" aria-label="Start demo voice call" title="Add a demo voice-call record">☎</button>
               <button class="icon-button header-action" id="video-call" aria-label="Start demo video call" title="Add a demo video-call record">▣</button>
+              <button class="icon-button header-action" id="chat-theme-button" aria-label="Choose conversation theme" title="Choose this chat's theme">✧</button>
               <button class="icon-button header-action" aria-label="Search this conversation" title="Search this conversation">
                 <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4 4" /></svg>
               </button>
@@ -174,6 +180,14 @@
         <section class="sidebar-view content-view" id="calls-panel" hidden>
           <header class="content-view-header"><span class="eyebrow">CALL HISTORY</span><span class="local-note">Demo call activity</span></header>
           <div class="calls-feed" id="calls-feed"></div>
+        </section>
+        <section class="sidebar-view content-view moments-panel" id="moments-panel" hidden>
+          <header class="content-view-header moments-heading">
+            <div><span class="eyebrow">A PRIVATE LITTLE TIME CAPSULE</span><h1>Moments worth keeping</h1></div>
+            <span class="moment-total" id="moment-total">0 saved</span>
+          </header>
+          <p class="moments-intro">Keep the messages you want to find again. They stay saved on this device.</p>
+          <div class="moments-feed" id="moments-feed"></div>
         </section>
       </section>
 
@@ -245,12 +259,43 @@
           <h2 id="message-action-title">Your message</h2>
           <div class="message-action-preview" id="message-action-preview"></div>
           <div class="message-action-buttons">
+            <button type="button" data-message-action="moment">✦ Keep this moment</button>
             <button type="button" data-message-action="reply">↩ Reply</button>
             <button type="button" data-message-action="react">♡ React</button>
             <button type="button" data-message-action="star">☆ Star / unstar</button>
             <button type="button" data-message-action="edit">✎ Edit</button>
             <button type="button" data-message-action="delete" class="danger-action">⌫ Delete</button>
           </div>
+        </form>
+      </dialog>
+      <dialog class="new-chat-dialog moment-dialog" id="moment-dialog" aria-labelledby="moment-title">
+        <form id="moment-form">
+          <button class="dialog-close" id="close-moment-dialog" type="button" aria-label="Close">×</button>
+          <span class="eyebrow">A LITTLE TIME CAPSULE</span>
+          <h2 id="moment-title">Keep this moment.</h2>
+          <p>Save this message in your private Moments collection on this device.</p>
+          <div class="moment-capture-preview" id="moment-capture-preview"></div>
+          <label for="moment-note">Add a note (optional)</label>
+          <textarea id="moment-note" maxlength="200" rows="3" placeholder="Why do you want to remember this?"></textarea>
+          <div class="dialog-actions">
+            <button type="button" class="cancel-button" id="cancel-moment">Cancel</button>
+            <button type="submit" class="primary-button">Save moment <span>✦</span></button>
+          </div>
+        </form>
+      </dialog>
+      <dialog class="new-chat-dialog theme-dialog" id="theme-dialog" aria-labelledby="theme-title">
+        <form id="theme-form">
+          <button class="dialog-close" id="close-theme-dialog" type="button" aria-label="Close">×</button>
+          <span class="eyebrow">MAKE THIS SPACE YOURS</span>
+          <h2 id="theme-title">Choose a chat atmosphere.</h2>
+          <p>The look of each conversation is saved separately on this device.</p>
+          <div class="theme-options" id="theme-options" role="group" aria-label="Conversation themes">
+            <button type="button" class="theme-option" data-theme="violet" aria-pressed="false"><span class="theme-swatch theme-violet"></span><strong>Violet hour</strong><small>Thoughtful & calm</small></button>
+            <button type="button" class="theme-option" data-theme="ocean" aria-pressed="false"><span class="theme-swatch theme-ocean"></span><strong>Blue lagoon</strong><small>Clear & cool</small></button>
+            <button type="button" class="theme-option" data-theme="sunset" aria-pressed="false"><span class="theme-swatch theme-sunset"></span><strong>Soft sunset</strong><small>Warm & bright</small></button>
+            <button type="button" class="theme-option" data-theme="meadow" aria-pressed="false"><span class="theme-swatch theme-meadow"></span><strong>Quiet meadow</strong><small>Fresh & grounded</small></button>
+          </div>
+          <div class="dialog-actions"><button type="button" class="cancel-button" id="close-theme-picker">Done</button></div>
         </form>
       </dialog>
       <dialog class="new-chat-dialog" id="profile-dialog" aria-labelledby="profile-title">

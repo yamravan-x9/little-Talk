@@ -1,4 +1,10 @@
 const STORAGE_KEY = "little-talk-demo-v1";
+const chatThemes = {
+  violet: { label: "Violet hour", start: "#4d376e", end: "#755b9c", darkStart: "#382a4c", darkEnd: "#533c6f", glow: "#c4b1e1", bubble: "#dff4e8", bubbleDark: "#2e5141", line: "#9b78c8" },
+  ocean: { label: "Blue lagoon", start: "#24506d", end: "#397f91", darkStart: "#203c50", darkEnd: "#2f6573", glow: "#9cced8", bubble: "#d9f0f3", bubbleDark: "#284d56", line: "#64a8b8" },
+  sunset: { label: "Soft sunset", start: "#874b55", end: "#c17b62", darkStart: "#5e3541", darkEnd: "#875642", glow: "#f0c2a6", bubble: "#f9e5d8", bubbleDark: "#5b3b37", line: "#df9a72" },
+  meadow: { label: "Quiet meadow", start: "#315e4c", end: "#5b8c70", darkStart: "#263f34", darkEnd: "#3d654d", glow: "#b2d8be", bubble: "#e1f3df", bubbleDark: "#304e39", line: "#78b18a" },
+};
 
 const starterChats = [
   {
@@ -129,6 +135,7 @@ function defaultState() {
     chats: cloneStarterChats(),
     statuses: JSON.parse(JSON.stringify(starterStatuses)),
     calls: [],
+    moments: [],
     profile: { name: "You", about: "At your own pace ✨", darkMode: false },
   };
 }
@@ -146,6 +153,7 @@ function normalizeState(parsed) {
     chat.colors = normalizeColors(chat.colors, ["#b5a8c8", "#8776a3"]);
     chat.status = typeof chat.status === "string" ? chat.status.slice(0, 100) : "available";
     chat.time = typeof chat.time === "string" ? chat.time.slice(0, 40) : "";
+    chat.theme = Object.hasOwn(chatThemes, chat.theme) ? chat.theme : "violet";
     chat.messages.forEach((message, index) => {
       if (!message || typeof message !== "object") throw new Error("A message in this backup is invalid.");
       if (!message.id) message.id = `${chat.id}-message-${index}`;
@@ -184,6 +192,20 @@ function normalizeState(parsed) {
     }))
     : JSON.parse(JSON.stringify(starterStatuses));
   parsed.calls = Array.isArray(parsed.calls) ? parsed.calls.filter((call) => call && typeof call.name === "string" && Number.isFinite(call.createdAt)).slice(-1000) : [];
+  parsed.moments = Array.isArray(parsed.moments)
+    ? parsed.moments.filter((moment) => moment && typeof moment.chatId === "string" && typeof moment.messageId === "string" && Number.isFinite(moment.savedAt))
+      .slice(-500)
+      .map((moment, index) => ({
+        id: typeof moment.id === "string" ? moment.id.slice(0, 120) : `moment-${index}`,
+        chatId: moment.chatId.slice(0, 100),
+        chatName: typeof moment.chatName === "string" ? moment.chatName.slice(0, 40) : "Conversation",
+        messageId: moment.messageId.slice(0, 120),
+        author: typeof moment.author === "string" ? moment.author.slice(0, 60) : "Someone",
+        text: typeof moment.text === "string" ? moment.text.slice(0, 4000) : "",
+        note: typeof moment.note === "string" ? moment.note.slice(0, 200) : "",
+        savedAt: moment.savedAt,
+      }))
+    : [];
   parsed.profile = Object.assign({ name: "You", about: "At your own pace ✨", darkMode: false }, parsed.profile || {});
   parsed.profile.name = typeof parsed.profile.name === "string" ? parsed.profile.name.trim().slice(0, 40) || "You" : "You";
   parsed.profile.about = typeof parsed.profile.about === "string" ? parsed.profile.about.slice(0, 80) : "";
@@ -323,10 +345,15 @@ function renderActiveChat() {
   $("#empty-state").hidden = !empty;
   $("#active-chat").hidden = empty;
   if (empty) {
+    applyChatTheme(null);
     renderList();
     return;
   }
 
+  applyChatTheme(chat);
+  document.querySelectorAll(".theme-option").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.theme === (chat.theme || "violet")));
+  });
   $("#header-avatar").outerHTML = avatarHTML(chat, "header-avatar").replace("<span class=\"avatar", '<span id="header-avatar" class="avatar');
   $("#header-name").textContent = chat.name;
   $("#header-status").textContent = chat.status;
@@ -345,6 +372,22 @@ function renderActiveChat() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
   renderChatMenu();
   renderList();
+}
+
+function applyChatTheme(chat) {
+  const theme = chatThemes[chat && chat.theme] || chatThemes.violet;
+  const panel = $("#chat-panel");
+  appShell.style.setProperty("--chat-theme-start", theme.start);
+  appShell.style.setProperty("--chat-theme-end", theme.end);
+  appShell.style.setProperty("--chat-theme-dark-start", theme.darkStart);
+  appShell.style.setProperty("--chat-theme-dark-end", theme.darkEnd);
+  appShell.style.setProperty("--chat-theme-accent", theme.line);
+  panel.style.setProperty("--chat-theme-start", theme.start);
+  panel.style.setProperty("--chat-theme-end", theme.end);
+  panel.style.setProperty("--chat-theme-glow", theme.glow);
+  panel.style.setProperty("--chat-theme-bubble", theme.bubble);
+  panel.style.setProperty("--chat-theme-bubble-dark", theme.bubbleDark);
+  panel.style.setProperty("--chat-theme-line", theme.line);
 }
 
 function renderMessage(chat, message) {
@@ -400,8 +443,10 @@ function setAppView(view) {
   $("#chat-section").hidden = view !== "chats";
   $("#updates-view").hidden = view !== "updates";
   $("#calls-view").hidden = view !== "calls";
+  $("#moments-view").hidden = view !== "moments";
   $("#updates-panel").hidden = view !== "updates";
   $("#calls-panel").hidden = view !== "calls";
+  $("#moments-panel").hidden = view !== "moments";
   document.querySelectorAll(".section-nav-button").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === view);
   });
@@ -411,6 +456,59 @@ function setAppView(view) {
     (window.innerWidth <= 760 ? $("#new-status") : $("#panel-new-status")).focus({ preventScroll: true });
   }
   if (view === "calls") renderCalls();
+  if (view === "moments") renderMoments();
+}
+
+function renderMoments() {
+  const moments = state.moments.slice().sort((a, b) => b.savedAt - a.savedAt);
+  const count = String(moments.length);
+  $("#moments-count").textContent = count;
+  $("#moment-total").textContent = `${count} saved`;
+  const shortcutMarkup = moments.length
+    ? moments.slice(0, 5).map((moment) => `<button class="moment-shortcut" type="button" data-open-moment="${escapeHTML(moment.id)}"><span class="moment-spark">✦</span><span><strong>${escapeHTML(moment.chatName)}</strong><small>${escapeHTML(moment.text || "A saved moment")}</small></span></button>`).join("")
+    : '<p class="moments-empty-small">Save a message using its ✦ menu to start your collection.</p>';
+  $("#moments-shortcuts").innerHTML = shortcutMarkup;
+  $("#moments-feed").innerHTML = moments.length
+    ? moments.map((moment) => {
+      const date = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(moment.savedAt));
+      return `<article class="moment-card">
+        <div class="moment-card-top"><span class="moment-spark">✦ A MOMENT</span><time>${escapeHTML(date)}</time></div>
+        <blockquote>${escapeHTML(moment.text || "A shared photo or voice note")}</blockquote>
+        ${moment.note ? `<p class="moment-note">${escapeHTML(moment.note)}</p>` : ""}
+        <div class="moment-card-footer"><span>From <strong>${escapeHTML(moment.author)}</strong> · ${escapeHTML(moment.chatName)}</span>
+          <div><button type="button" class="moment-open" data-open-moment="${escapeHTML(moment.id)}">Visit chat ↗</button><button type="button" class="moment-remove" data-delete-moment="${escapeHTML(moment.id)}" aria-label="Remove saved moment">×</button></div>
+        </div>
+      </article>`;
+    }).join("")
+    : '<div class="moments-empty"><span class="moment-empty-art">✦</span><strong>Your good moments, gathered.</strong><p>Open any message menu and choose “Keep this moment” to start a personal collection you can revisit anytime.</p></div>';
+}
+
+function openMoment(momentId) {
+  const moment = state.moments.find((item) => item.id === momentId);
+  if (!moment) return;
+  const chat = state.chats.find((item) => item.id === moment.chatId);
+  if (!chat) {
+    showToast("That original conversation is no longer available.");
+    return;
+  }
+  selectChat(chat.id);
+  requestAnimationFrame(() => {
+    const message = [...messagesEl.querySelectorAll("[data-message-id]")].find((item) => item.dataset.messageId === moment.messageId);
+    if (message) {
+      message.scrollIntoView({ behavior: "smooth", block: "center" });
+      message.classList.add("moment-highlight");
+      setTimeout(() => message.classList.remove("moment-highlight"), 1800);
+    } else {
+      showToast("The saved note is here, but its original message was removed.");
+    }
+  });
+}
+
+function removeMoment(momentId) {
+  state.moments = state.moments.filter((moment) => moment.id !== momentId);
+  saveState();
+  renderMoments();
+  showToast("Moment removed from your collection.");
 }
 
 function renderStatuses() {
@@ -828,6 +926,10 @@ function openMessageActions(messageId) {
   if (!message) return;
   activeMessageId = messageId;
   $("#message-action-preview").textContent = message.text || (message.image ? "Photo attachment" : "Voice message");
+  const savedMoment = state.moments.some((moment) => moment.chatId === chat.id && moment.messageId === message.id);
+  const momentButton = $('[data-message-action="moment"]');
+  momentButton.textContent = savedMoment ? "✦ Already in Moments" : "✦ Keep this moment";
+  momentButton.disabled = savedMoment;
   document.querySelector('[data-message-action="edit"]').hidden = message.from !== "me" || !message.text;
   $("#message-action-dialog").showModal();
 }
@@ -837,6 +939,13 @@ function handleMessageAction(action) {
   const message = chat && chat.messages.find((item) => item.id === activeMessageId);
   if (!chat || !message) return;
   $("#message-action-dialog").close();
+  if (action === "moment") {
+    $("#moment-form").reset();
+    $("#moment-capture-preview").textContent = message.text || (message.image ? "Photo attachment" : "Voice message");
+    $("#moment-dialog").showModal();
+    $("#moment-note").focus();
+    return;
+  }
   if (action === "reply") {
     inputEl.dataset.replyTo = message.id;
     renderReplyDraft();
@@ -859,6 +968,59 @@ function handleMessageAction(action) {
   }
   saveState();
   renderActiveChat();
+}
+
+function saveMoment(event) {
+  event.preventDefault();
+  const chat = activeChat();
+  const message = chat && chat.messages.find((item) => item.id === activeMessageId);
+  if (!chat || !message) {
+    $("#moment-dialog").close();
+    showToast("That message is no longer available.");
+    return;
+  }
+  if (state.moments.some((moment) => moment.chatId === chat.id && moment.messageId === message.id)) {
+    $("#moment-dialog").close();
+    showToast("This message is already in your Moments.");
+    return;
+  }
+  if (state.moments.length >= 500) {
+    $("#moment-dialog").close();
+    showToast("Your Moments collection is full. Remove one to save another.");
+    return;
+  }
+  state.moments.push({
+    id: `moment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    chatId: chat.id,
+    chatName: chat.name,
+    messageId: message.id,
+    author: message.from === "me" ? state.profile.name : (message.author || chat.name),
+    text: message.text || (message.image ? "Photo attachment" : "Voice message"),
+    note: $("#moment-note").value.trim().slice(0, 200),
+    savedAt: Date.now(),
+  });
+  saveState();
+  $("#moment-dialog").close();
+  renderMoments();
+  showToast("Saved to your private Moments collection.");
+}
+
+function openThemePicker() {
+  const chat = activeChat();
+  if (!chat) return;
+  document.querySelectorAll(".theme-option").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.theme === (chat.theme || "violet")));
+  });
+  $("#theme-dialog").showModal();
+}
+
+function setChatTheme(themeId) {
+  const chat = activeChat();
+  if (!chat || !Object.hasOwn(chatThemes, themeId)) return;
+  chat.theme = themeId;
+  saveState();
+  renderActiveChat();
+  showToast(`${chatThemes[themeId].label} applied to ${chat.name}.`);
 }
 
 function handleChatAction(action) {
@@ -948,6 +1110,7 @@ function importBackup(file) {
       setAppView("chats");
       renderActiveChat();
       renderStatuses();
+      renderMoments();
       $("#profile-dialog").close();
       showToast("Backup imported on this device.");
     } catch (error) {
@@ -983,6 +1146,20 @@ document.querySelectorAll(".filter-tab").forEach((tab) => {
 
 document.querySelectorAll(".section-nav-button").forEach((button) => {
   button.addEventListener("click", () => setAppView(button.dataset.view));
+});
+
+$("#moments-shortcuts").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-open-moment]");
+  if (button) openMoment(button.dataset.openMoment);
+});
+$("#moments-feed").addEventListener("click", (event) => {
+  const removeButton = event.target.closest("[data-delete-moment]");
+  if (removeButton) {
+    removeMoment(removeButton.dataset.deleteMoment);
+    return;
+  }
+  const openButton = event.target.closest("[data-open-moment]");
+  if (openButton) openMoment(openButton.dataset.openMoment);
 });
 
 $("#chat-search").addEventListener("input", renderList);
@@ -1074,6 +1251,7 @@ $("#reset-demo").addEventListener("click", () => {
   renderActiveChat();
   renderStatuses();
   renderCalls();
+  renderMoments();
   showToast("Your demo chats are back.");
 });
 $(".header-action[aria-label='Search this conversation']").addEventListener("click", () => {
@@ -1102,15 +1280,26 @@ $("#chat-menu").addEventListener("click", (event) => {
 });
 $("#voice-call").addEventListener("click", () => recordDemoCall("voice"));
 $("#video-call").addEventListener("click", () => recordDemoCall("video"));
+$("#chat-theme-button").addEventListener("click", openThemePicker);
+$("#theme-options").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-theme]");
+  if (!button) return;
+  setChatTheme(button.dataset.theme);
+});
+$("#close-theme-picker").addEventListener("click", () => $("#theme-dialog").close());
+$("#close-theme-dialog").addEventListener("click", () => $("#theme-dialog").close());
 messagesEl.addEventListener("click", (event) => {
   const button = event.target.closest("[data-open-message]");
   if (button) openMessageActions(button.dataset.openMessage);
 });
 $("#message-action-form").addEventListener("click", (event) => {
   const button = event.target.closest("[data-message-action]");
-  if (button) handleMessageAction(button.dataset.messageAction);
+  if (button && !button.disabled) handleMessageAction(button.dataset.messageAction);
 });
 $("#close-message-action").addEventListener("click", () => $("#message-action-dialog").close());
+$("#moment-form").addEventListener("submit", saveMoment);
+$("#cancel-moment").addEventListener("click", () => $("#moment-dialog").close());
+$("#close-moment-dialog").addEventListener("click", () => $("#moment-dialog").close());
 $(".profile-menu").addEventListener("click", openProfileSettings);
 $("#profile-form").addEventListener("submit", saveProfile);
 $("#cancel-profile").addEventListener("click", () => {
@@ -1144,3 +1333,4 @@ applyProfile();
 renderActiveChat();
 renderStatuses();
 renderCalls();
+renderMoments();

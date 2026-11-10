@@ -16,6 +16,8 @@ Open `index.html` in a browser, or serve this folder with any static file server
 - Attach photos and audio, or record a voice note where microphone permissions are available.
 - Save demo voice/video call activity to the call history. Calls are not connected.
 - Select chats and save one message to all of them at once.
+- Give each conversation its own atmosphere with four saved color themes.
+- Save favorite messages as Moments, add a personal note, and jump back to the original message later.
 - Edit your local profile, switch to evening colors, and export or import a JSON backup.
 - Use **Reset demo** to restore starter conversations and settings.
 
